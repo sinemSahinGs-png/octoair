@@ -1,15 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #12100f;
-  --foreground: #faf6f0;
+  --background: #05070a;
+  --foreground: #f2f7ff;
+  --navy: #061326;
+  --navy-deep: #081a33;
+  --panel: #0d223f;
+  --accent-blue: #3da5ff;
+  --accent-cyan: #56d7ff;
+  --text-muted: rgba(242, 247, 255, 0.72);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-space-grotesk);
 }
 
 *,
@@ -25,8 +31,14 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+canvas {
+  display: block;
 }
 
 a {
@@ -39,26 +51,243 @@ a {
   width: 100%;
 }
 
-.font-luxury-serif {
-  font-family: "Times New Roman", Georgia, serif;
+.font-heading {
+  font-family: var(--font-space-grotesk), var(--font-inter), system-ui, sans-serif;
 }
 
-.font-luxury-sans {
-  font-family: var(--font-geist-sans), Arial, sans-serif;
-  letter-spacing: 0.04em;
+.section-label {
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
 }
 
-.field-input {
-  width: 100%;
-  background: #fff;
-  border: 1px solid rgb(163 142 117 / 0.3);
-  border-radius: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.75rem;
-  color: #706b64;
+.section-shell {
+  position: relative;
+  overflow: hidden;
+  padding: 4rem 1.5rem;
 }
 
-.field-input:focus-visible {
-  outline: 2px solid rgb(163 142 117 / 0.45);
-  outline-offset: 1px;
+@media (width >= 768px) {
+  .section-shell {
+    padding: 5.5rem 3rem;
+  }
+}
+
+@media (width >= 1024px) {
+  .section-shell {
+    padding-inline: 4rem;
+  }
+}
+
+.section-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 0;
+}
+
+.section-divider {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 1px;
+  width: min(72%, 720px);
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(86, 215, 255, 0.22),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.ambient-glow {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.22;
+  z-index: 0;
+}
+
+/* Shared premium surface */
+.card-surface {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(165deg, rgba(13, 34, 63, 0.88), rgba(6, 19, 38, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(86, 215, 255, 0.12),
+    0 10px 30px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(242, 247, 255, 0.04);
+  transition:
+    box-shadow 380ms ease,
+    transform 380ms ease,
+    border-color 380ms ease;
+}
+
+.card-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    140deg,
+    rgba(86, 215, 255, 0.32),
+    rgba(61, 165, 255, 0.05) 40%,
+    rgba(86, 215, 255, 0.16) 75%,
+    rgba(61, 165, 255, 0.22)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.card-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    rgba(86, 215, 255, 0.1) 320deg,
+    rgba(86, 215, 255, 0.7) 345deg,
+    rgba(61, 165, 255, 0.85) 355deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 380ms ease;
+  animation: trace-spin 7s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card-surface:hover {
+  box-shadow:
+    0 0 0 1px rgba(86, 215, 255, 0.28),
+    0 0 28px rgba(61, 165, 255, 0.14),
+    0 14px 36px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(242, 247, 255, 0.06);
+}
+
+.card-surface:hover::after {
+  opacity: 0.7;
+}
+
+.card-surface-inner {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+/* Level 1 — strong airplane-window silhouette */
+.window-card-l1 {
+  border-radius: 34% / 20%;
+}
+
+@media (width < 768px) {
+  .window-card-l1 {
+    border-radius: 28px / 40px;
+  }
+}
+
+/* Level 2 — softened window geometry, readable */
+.window-card-l2 {
+  border-radius: 22px / 30px;
+}
+
+@media (width >= 768px) {
+  .window-card-l2 {
+    border-radius: 26px / 34px;
+  }
+}
+
+/* Level 1 wide cinematic */
+.window-card-wide {
+  border-radius: 24px / 36px;
+}
+
+@media (width >= 768px) {
+  .window-card-wide {
+    border-radius: 28px / 44px;
+  }
+}
+
+@keyframes trace-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Level 3 — compact cockpit panel */
+.cockpit-panel {
+  position: relative;
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(13, 34, 63, 0.9), rgba(6, 19, 38, 0.96));
+  border: 1px solid rgba(86, 215, 255, 0.12);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(242, 247, 255, 0.05);
+  transition:
+    border-color 280ms ease,
+    box-shadow 280ms ease,
+    transform 280ms ease;
+}
+
+.cockpit-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(86, 215, 255, 0.04);
+}
+
+.cockpit-panel:hover {
+  border-color: rgba(86, 215, 255, 0.3);
+  box-shadow:
+    0 0 22px rgba(61, 165, 255, 0.12),
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(242, 247, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-surface::after {
+    animation: none;
+  }
+
+  .card-surface,
+  .cockpit-panel {
+    transition: none;
+  }
 }
