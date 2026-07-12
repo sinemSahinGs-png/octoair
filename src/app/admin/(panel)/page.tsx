@@ -9,8 +9,11 @@ type FormState = {
   title: string;
   excerpt: string;
   category: string;
+  type: string;
+  difficulty: string;
   date: string;
-  readTime: string;
+  readingTime: string;
+  sourceUrl: string;
   featured: boolean;
   showInLatest: boolean;
   imageUrl: string | null;
@@ -19,9 +22,12 @@ type FormState = {
 const emptyForm: FormState = {
   title: "",
   excerpt: "",
-  category: "Havacılık Haberleri",
+  category: "Uçuş Prensipleri",
+  type: "guide",
+  difficulty: "başlangıç",
   date: "",
-  readTime: "5 dk",
+  readingTime: "5 dk",
+  sourceUrl: "",
   featured: false,
   showInLatest: true,
   imageUrl: null,
@@ -31,18 +37,27 @@ const inputClass =
   "mt-1.5 w-full rounded-xl border border-[#56D7FF]/20 bg-[#05070A] px-3.5 py-2.5 text-sm text-[#F2F7FF] outline-none focus:border-[#56D7FF]/5";
 
 const CATEGORY_OPTIONS = [
-  "Havacılık Haberleri",
-  "Pilot Adayları",
-  "Uçak Teknolojileri",
-  "Emniyet",
-  "Emniyet & Kaza Analizleri",
-  "Hava Yolları",
-  "Simülasyon",
-  "Kariyer",
-  "Eğitim",
-  "İngilizce",
-  "Derin Analiz",
+  "Uçuş Prensipleri",
+  "Kokpit ve Sistemler",
+  "Emniyet & İnsan Faktörü",
+  "Navigasyon",
+  "Meteoroloji",
+  "Vaka Analizleri",
+  "Havayolu Operasyonları",
+  "Havacılık Sözlüğü",
+  "Havacılık Gündemi",
 ];
+
+const TYPE_OPTIONS = [
+  { value: "guide", label: "Rehber" },
+  { value: "concept", label: "Kavram" },
+  { value: "system", label: "Sistem" },
+  { value: "safety", label: "Emniyet" },
+  { value: "case-study", label: "Vaka" },
+  { value: "news", label: "Gündem" },
+];
+
+const DIFFICULTY_OPTIONS = ["başlangıç", "orta", "ileri"];
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -89,8 +104,11 @@ export default function AdminDashboard() {
       title: article.title,
       excerpt: article.excerpt,
       category: article.category,
+      type: article.type,
+      difficulty: article.difficulty,
       date: article.date,
-      readTime: article.readTime,
+      readingTime: article.readingTime,
+      sourceUrl: article.sourceUrl || "",
       featured: article.featured,
       showInLatest: article.showInLatest,
       imageUrl: article.imageUrl,
@@ -155,8 +173,11 @@ export default function AdminDashboard() {
       title: form.title,
       excerpt: form.excerpt,
       category: form.category,
+      type: form.type,
+      difficulty: form.difficulty,
       date: form.date,
-      readTime: form.readTime,
+      readingTime: form.readingTime,
+      sourceUrl: form.sourceUrl || null,
       featured: form.featured,
       showInLatest: form.showInLatest,
       imageUrl: form.imageUrl,
@@ -179,7 +200,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    setMessage(editing ? "Haber güncellendi." : "Yeni haber eklendi.");
+    setMessage(editing ? "İçerik güncellendi." : "Yeni içerik eklendi.");
     resetForm();
     await loadArticles();
     router.refresh();
@@ -208,7 +229,7 @@ export default function AdminDashboard() {
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#56D7FF]">Octo Air</p>
-          <h1 className="font-heading mt-1 text-2xl font-medium sm:text-3xl">Haber Yönetimi</h1>
+          <h1 className="font-heading mt-1 text-2xl font-medium sm:text-3xl">İçerik Yönetimi</h1>
         </div>
         <div className="flex gap-2">
           <a
@@ -233,7 +254,7 @@ export default function AdminDashboard() {
           className="rounded-2xl border border-[#56D7FF]/15 bg-[#061326]/80 p-5 sm:p-6"
         >
           <h2 className="font-heading text-lg">
-            {editing ? "Haberi Düzenle" : "Yeni Haber Ekle"}
+            {editing ? "İçeriği Düzenle" : "Yeni İçerik Ekle"}
           </h2>
 
           <div className="mt-5 space-y-4">
@@ -270,10 +291,39 @@ export default function AdminDashboard() {
                   ))}
                 </select>
               </Field>
+              <Field label="Tür">
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                  className={inputClass}
+                >
+                  {TYPE_OPTIONS.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Zorluk">
+                <select
+                  value={form.difficulty}
+                  onChange={(e) => setForm((p) => ({ ...p, difficulty: e.target.value }))}
+                  className={inputClass}
+                >
+                  {DIFFICULTY_OPTIONS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Okuma süresi">
                 <input
-                  value={form.readTime}
-                  onChange={(e) => setForm((p) => ({ ...p, readTime: e.target.value }))}
+                  value={form.readingTime}
+                  onChange={(e) => setForm((p) => ({ ...p, readingTime: e.target.value }))}
                   className={inputClass}
                   placeholder="5 dk"
                 />
@@ -289,6 +339,15 @@ export default function AdminDashboard() {
               />
             </Field>
 
+            <Field label="Kaynak URL (opsiyonel)">
+              <input
+                value={form.sourceUrl}
+                onChange={(e) => setForm((p) => ({ ...p, sourceUrl: e.target.value }))}
+                className={inputClass}
+                placeholder="https://..."
+              />
+            </Field>
+
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="inline-flex items-center gap-2">
                 <input
@@ -296,7 +355,7 @@ export default function AdminDashboard() {
                   checked={form.featured}
                   onChange={(e) => setForm((p) => ({ ...p, featured: e.target.checked }))}
                 />
-                Öne çıkan haber
+                Öne çıkan rehber
               </label>
               <label className="inline-flex items-center gap-2">
                 <input
@@ -304,7 +363,7 @@ export default function AdminDashboard() {
                   checked={form.showInLatest}
                   onChange={(e) => setForm((p) => ({ ...p, showInLatest: e.target.checked }))}
                 />
-                Son yazılarda göster
+                Son içeriklerde göster
               </label>
             </div>
 
@@ -391,7 +450,7 @@ export default function AdminDashboard() {
                 disabled={saving}
                 className="rounded-full border border-[#3DA5FF]/45 bg-[linear-gradient(135deg,#081A33,#123A6B)] px-5 py-2.5 text-[11px] uppercase tracking-[0.14em] disabled:opacity-60"
               >
-                {saving ? "Kaydediliyor..." : editing ? "Güncelle" : "Haberi Ekle"}
+                {saving ? "Kaydediliyor..." : editing ? "Güncelle" : "İçeriği Ekle"}
               </button>
               {editing && (
                 <button
@@ -407,9 +466,9 @@ export default function AdminDashboard() {
         </form>
 
         <div className="rounded-2xl border border-[#56D7FF]/15 bg-[#061326]/80 p-5 sm:p-6">
-          <h2 className="font-heading text-lg">Mevcut Haberler</h2>
+          <h2 className="font-heading text-lg">Mevcut İçerikler</h2>
           <p className="mt-1 text-sm text-[rgba(242,247,255,0.55)]">
-            {loading ? "Yükleniyor..." : `${sorted.length} haber`}
+            {loading ? "Yükleniyor..." : `${sorted.length} içerik`}
           </p>
 
           <div className="mt-5 space-y-3">
@@ -439,9 +498,9 @@ export default function AdminDashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-[#F2F7FF]">{article.title}</p>
                     <p className="mt-1 text-[11px] text-[rgba(242,247,255,0.5)]">
-                      {article.category} · {article.date}
+                      {article.category} · {article.type} · {article.date}
                       {article.featured ? " · Öne çıkan" : ""}
-                      {article.showInLatest ? " · Son yazılar" : ""}
+                      {article.showInLatest ? " · Son içerikler" : ""}
                     </p>
                     <div className="mt-2 flex gap-2">
                       <button

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { createArticle, getArticles } from "@/lib/store";
+import { createArticle, getArticles, type ContentType, type Difficulty } from "@/lib/store";
 
 function unauthorized() {
   return NextResponse.json({ error: "Yetkisiz." }, { status: 401 });
@@ -30,9 +30,17 @@ export async function POST(request: NextRequest) {
     title: String(body.title).trim(),
     excerpt: String(body.excerpt).trim(),
     category: String(body.category).trim(),
+    type: (body.type as ContentType) || "guide",
+    difficulty: (body.difficulty as Difficulty) || "başlangıç",
     date: body.date ? String(body.date) : "",
-    readTime: body.readTime ? String(body.readTime) : "5 dk",
-    href: body.href ? String(body.href) : "#son-yazilar",
+    readingTime: body.readingTime
+      ? String(body.readingTime)
+      : body.readTime
+        ? String(body.readTime)
+        : "5 dk",
+    sourceUrl: body.sourceUrl ? String(body.sourceUrl) : null,
+    slug: body.slug ? String(body.slug) : undefined,
+    href: body.href ? String(body.href) : undefined,
     imageGradient: body.imageGradient || "",
     imageUrl: body.imageUrl ?? null,
     featured: Boolean(body.featured),

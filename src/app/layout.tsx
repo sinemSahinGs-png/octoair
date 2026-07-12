@@ -14,9 +14,9 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Octo Air — Havacılığa Dair Her Şey",
+  title: "Octo Air — Premium Havacılık Bilgi Platformu",
   description:
-    "Haberler, analizler, eğitim içerikleri ve ilham veren havacılık hikâyeleri tek bir premium platformda.",
+    "Uçuş prensipleri, kokpit sistemleri, CRM, emniyet ve vaka analizlerini sade ve derinlikli anlatan Türkçe havacılık bilgi platformu.",
 };
 
 export default function RootLayout({
@@ -29,7 +29,16 @@ export default function RootLayout({
       lang="tr"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <svg width="0" height="0" className="absolute" aria-hidden>
+          <defs>
+            <clipPath id="airplane-window-clip" clipPathUnits="objectBoundingBox">
+              <path d="M0.16,0.035 C0.06,0.035,0.02,0.09,0.015,0.18 C0.005,0.42,0.005,0.58,0.015,0.82 C0.02,0.91,0.06,0.965,0.16,0.965 L0.84,0.965 C0.94,0.965,0.98,0.91,0.985,0.82 C0.995,0.58,0.995,0.42,0.985,0.18 C0.98,0.09,0.94,0.035,0.84,0.035 Z" />
+            </clipPath>
+          </defs>
+        </svg>
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,55 +1,91 @@
-export type { Article } from "@/lib/store";
+export type { Article, ContentType, Difficulty } from "@/lib/store";
+import type { Article } from "@/lib/store";
 
-export const CATEGORIES = [
-  { name: "Havacılık Haberleri", href: "#haberler", count: "128" },
-  { name: "Pilot Adayları", href: "#egitim", count: "64" },
-  { name: "Uçak Teknolojileri", href: "#kategoriler", count: "42" },
-  { name: "Emniyet & Kaza Analizleri", href: "#kategoriler", count: "37" },
-  { name: "Hava Yolları", href: "#kategoriler", count: "55" },
-  { name: "Simülasyon", href: "#egitim", count: "29" },
-  { name: "Kariyer", href: "#egitim", count: "33" },
-  { name: "Eğitim", href: "#egitim", count: "71" },
-] as const;
+export function articleHref(article: Pick<Article, "slug" | "href">) {
+  if (article.href?.startsWith("/icerikler/")) return article.href;
+  return `/icerikler/${article.slug}`;
+}
 
-export const PILOT_GUIDES = [
+export function getArticleBody(article: Article): string[] {
+  if (article.content?.trim()) {
+    return article.content
+      .trim()
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  return [
+    article.excerpt,
+    `${article.title} konusunu Octo Air editoryal yaklaşımıyla sade, doğru ve takip edilebilir bir dilde ele alıyoruz.`,
+    `Bu içerik ${article.category} kategorisinde yer alır ve ${article.difficulty} seviyesindeki okuyucular için düzenlenmiştir. Ortalama okuma süresi ${article.readingTime}.`,
+    "Amacımız karmaşık havacılık kavramlarını abartısız bir çerçevede aktarmak; sistemleri, emniyet kültürünü ve operasyonel mantığı anlaşılır kılmaktır.",
+  ];
+}
+
+export const LEARNING_CATEGORIES = [
   {
-    title: "CRM Hazırlığı",
-    text: "Ekip kaynak yönetimi, iletişim protokolü ve karar alma senaryoları.",
-    href: "#egitim",
+    name: "Uçuş Prensipleri",
+    href: "#ogren",
+    description: "Kaldırma, sürükleme ve temel aerodinamik.",
   },
   {
-    title: "Teknik Mülakat",
-    text: "Sistem bilgisi, sınır durumlar ve operatör özel soru setleri.",
-    href: "#egitim",
+    name: "Kokpit ve Sistemler",
+    href: "#kokpit",
+    description: "Göstergeler, FMS ve otomatik uçuş.",
   },
   {
-    title: "İngilizce",
-    text: "Radyotelefoni, standart dışı durum dili ve Level 4–6 stratejisi.",
-    href: "#egitim",
+    name: "Emniyet & İnsan Faktörü",
+    href: "#emniyet",
+    description: "CRM, farkındalık ve karar alma.",
   },
   {
-    title: "Simülatör",
-    text: "PF/PM rolleri, checklist disiplini ve debrief kültürü.",
-    href: "#egitim",
+    name: "Navigasyon",
+    href: "#ogren",
+    description: "ILS, PBN ve rota yönetimi.",
   },
   {
-    title: "Class 1 Medical",
-    text: "Başvuru süreci, sık görülen red nedenleri ve hazırlık takvimi.",
-    href: "#egitim",
+    name: "Meteoroloji",
+    href: "#ogren",
+    description: "Hava olayları ve uçuş kararları.",
+  },
+  {
+    name: "Vaka Analizleri",
+    href: "#vaka",
+    description: "Gerçek olaylardan öğrenilen dersler.",
+  },
+  {
+    name: "Havayolu Operasyonları",
+    href: "#ogren",
+    description: "Hat operasyonu ve süreç kültürü.",
+  },
+  {
+    name: "Havacılık Sözlüğü",
+    href: "#ogren",
+    description: "Temel kavramlar ve kısaltmalar.",
   },
 ] as const;
 
 export const INTRO_FEATURES = [
   {
-    title: "Güncel Haberler",
-    text: "Operatörler, regülasyonlar ve sektörden seçilmiş gelişmeler.",
+    title: "Kavram Rehberleri",
+    text: "Karmaşık konuları sade, doğru ve takip edilebilir dilde anlatıyoruz.",
   },
   {
-    title: "Derin Analizler",
-    text: "Olaylar, teknoloji ve insan faktörünü editoryal derinlikle ele alırız.",
+    title: "Sistem Açıklamaları",
+    text: "Kokpit sistemlerini görsel ve editoryal netlikle açıklıyoruz.",
   },
   {
-    title: "Eğitim Rehberleri",
-    text: "Pilot adayları için adım adım, saha odaklı hazırlık içerikleri.",
+    title: "Vaka Okumaları",
+    text: "Seçilmiş olayları emniyet ve insan faktörü odağında inceliyoruz.",
   },
 ] as const;
+
+export const TYPE_LABELS: Record<string, string> = {
+  guide: "Rehber",
+  concept: "Kavram",
+  system: "Sistem",
+  safety: "Emniyet",
+  "case-study": "Vaka",
+  news: "Gündem",
+};

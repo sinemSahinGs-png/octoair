@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { deleteArticle, updateArticle } from "@/lib/store";
+import {
+  deleteArticle,
+  updateArticle,
+  type ContentType,
+  type Difficulty,
+} from "@/lib/store";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -21,8 +26,23 @@ export async function PUT(request: NextRequest, { params }: Params) {
     title: body.title !== undefined ? String(body.title).trim() : undefined,
     excerpt: body.excerpt !== undefined ? String(body.excerpt).trim() : undefined,
     category: body.category !== undefined ? String(body.category).trim() : undefined,
+    type: body.type !== undefined ? (body.type as ContentType) : undefined,
+    difficulty:
+      body.difficulty !== undefined ? (body.difficulty as Difficulty) : undefined,
     date: body.date !== undefined ? String(body.date) : undefined,
-    readTime: body.readTime !== undefined ? String(body.readTime) : undefined,
+    readingTime:
+      body.readingTime !== undefined
+        ? String(body.readingTime)
+        : body.readTime !== undefined
+          ? String(body.readTime)
+          : undefined,
+    sourceUrl:
+      body.sourceUrl === undefined
+        ? undefined
+        : body.sourceUrl
+          ? String(body.sourceUrl)
+          : null,
+    slug: body.slug !== undefined ? String(body.slug) : undefined,
     href: body.href !== undefined ? String(body.href) : undefined,
     imageGradient: body.imageGradient !== undefined ? String(body.imageGradient) : undefined,
     imageUrl: body.imageUrl === undefined ? undefined : body.imageUrl,
@@ -31,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   });
 
   if (!article) {
-    return NextResponse.json({ error: "Haber bulunamadı." }, { status: 404 });
+    return NextResponse.json({ error: "İçerik bulunamadı." }, { status: 404 });
   }
 
   return NextResponse.json({ article });
@@ -42,7 +62,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const ok = await deleteArticle(id);
   if (!ok) {
-    return NextResponse.json({ error: "Haber bulunamadı." }, { status: 404 });
+    return NextResponse.json({ error: "İçerik bulunamadı." }, { status: 404 });
   }
   return NextResponse.json({ ok: true });
 }
