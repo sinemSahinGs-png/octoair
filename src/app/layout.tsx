@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   title: "Octo Air — Premium Havacılık Bilgi Platformu",
   description:
     "Uçuş prensipleri, kokpit sistemleri, CRM, emniyet ve vaka analizlerini sade ve derinlikli anlatan Türkçe havacılık bilgi platformu.",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: ["/favicon.svg"],
+    apple: [{ url: "/favicon.svg" }],
+  },
 };
 
 export default function RootLayout({

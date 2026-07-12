@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Octo Air">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B2A52"/>
+      <stop offset="1" stop-color="#05070A"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="16" y1="10" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9AEBFF"/>
+      <stop offset="1" stop-color="#3DA5FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#56D7FF" stroke-opacity="0.4" stroke-width="2"/>
+
+  <!-- Wings -->
+  <path fill="url(#neon)" d="M6 29c9-5 16-6 23-5v4c-8-1-15 0-21 3z"/>
+  <path fill="url(#neon)" d="M58 29c-9-5-16-6-23-5v4c8-1 15 0 21 3z"/>
+
+  <!-- Octopus head -->
+  <ellipse cx="32" cy="26" rx="12" ry="11" fill="url(#neon)"/>
+  <circle cx="27" cy="24.5" r="2.4" fill="#061326"/>
+  <circle cx="37" cy="24.5" r="2.4" fill="#061326"/>
+  <circle cx="27.7" cy="23.8" r="0.8" fill="#F2F7FF"/>
+  <circle cx="37.7" cy="23.8" r="0.8" fill="#F2F7FF"/>
+
+  <!-- Tentacles -->
+  <g fill="none" stroke="url(#neon)" stroke-linecap="round">
+    <path stroke-width="3.4" d="M23 34c-4 5-7 12-9 19"/>
+    <path stroke-width="3.2" d="M27 35.5c-2.5 6-4 13-4.5 18.5"/>
+    <path stroke-width="3.4" d="M32 36.5c-.4 7-.8 13-.8 18"/>
+    <path stroke-width="3.2" d="M37 35.5c2.5 6 4 13 4.5 18.5"/>
+    <path stroke-width="3.4" d="M41 34c4 5 7 12 9 19"/>
+  </g>
+
+  <!-- Small plane mark -->
+  <path fill="#061326" fill-opacity=".5" d="M28.5 30.2 32 28.8l3.5 1.4L32 31.4z"/>
+</svg>
