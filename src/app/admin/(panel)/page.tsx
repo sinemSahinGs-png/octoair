@@ -8,6 +8,7 @@ type FormState = {
   id?: string;
   title: string;
   excerpt: string;
+  content: string;
   category: string;
   type: string;
   difficulty: string;
@@ -22,11 +23,12 @@ type FormState = {
 const emptyForm: FormState = {
   title: "",
   excerpt: "",
-  category: "Uçuş Prensipleri",
-  type: "guide",
+  content: "",
+  category: "Havacılık Gündemi",
+  type: "news",
   difficulty: "başlangıç",
   date: "",
-  readingTime: "5 dk",
+  readingTime: "3 dk",
   sourceUrl: "",
   featured: false,
   showInLatest: true,
@@ -37,6 +39,7 @@ const inputClass =
   "mt-1.5 w-full rounded-xl border border-[#56D7FF]/20 bg-[#05070A] px-3.5 py-2.5 text-sm text-[#F2F7FF] outline-none focus:border-[#56D7FF]/5";
 
 const CATEGORY_OPTIONS = [
+  "Havacılık Gündemi",
   "Uçuş Prensipleri",
   "Kokpit ve Sistemler",
   "Emniyet & İnsan Faktörü",
@@ -45,16 +48,15 @@ const CATEGORY_OPTIONS = [
   "Vaka Analizleri",
   "Havayolu Operasyonları",
   "Havacılık Sözlüğü",
-  "Havacılık Gündemi",
 ];
 
 const TYPE_OPTIONS = [
+  { value: "news", label: "Gündem / Haber" },
   { value: "guide", label: "Rehber" },
   { value: "concept", label: "Kavram" },
   { value: "system", label: "Sistem" },
   { value: "safety", label: "Emniyet" },
   { value: "case-study", label: "Vaka" },
-  { value: "news", label: "Gündem" },
 ];
 
 const DIFFICULTY_OPTIONS = ["başlangıç", "orta", "ileri"];
@@ -103,6 +105,7 @@ export default function AdminDashboard() {
       id: article.id,
       title: article.title,
       excerpt: article.excerpt,
+      content: article.content || "",
       category: article.category,
       type: article.type,
       difficulty: article.difficulty,
@@ -119,35 +122,83 @@ export default function AdminDashboard() {
   };
 
   const uploadFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("Sadece görsel dosyaları yükleyebilirsiniz.");
+    const nameOk = /\.(jpe?g|png|webp|gif|avif|heic|heif|bmp)$/i.test(file.name);
+    if (file.type && !file.type.startsWith("image/") && !nameOk) {
+      setError("Sadece görsel dosyaları yükleyebilirsiniz (JPG, PNG, WEBP).");
+      return;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      setError("Görsel 12MB’dan küçük olmalı.");
       return;
     }
 
     setUploading(true);
     setError("");
-    const body = new FormData();
-    body.append("file", file);
+    setMessage("");
 
-    const res = await fetch("/api/admin/upload", { method: "POST", body });
-    const data = await res.json();
-    setUploading(false);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 45000);
 
-    if (!res.ok) {
-      setError(data.error || "Yükleme başarısız.");
-      return;
-    }
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const base64 = btoa(binary);
+      const dataUrl = `data:${file.type || "image/jpeg"};base64,${base64}`;
 
-    if (form.imageUrl?.startsWith("/uploads/")) {
-      await fetch("/api/admin/upload", {
-        method: "DELETE",
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: form.imageUrl }),
+        signal: controller.signal,
+        body: JSON.stringify({
+          filename: file.name || "image.jpg",
+          mime: file.type || "image/jpeg",
+          data: dataUrl,
+        }),
       });
-    }
 
-    setForm((prev) => ({ ...prev, imageUrl: data.url }));
-    setMessage("Görsel yüklendi.");
+      let data: { url?: string; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Sunucu yanıtı okunamadı. Tekrar giriş yapmayı deneyin.");
+      }
+
+      if (!res.ok || !data.url) {
+        if (res.status === 401) {
+          throw new Error("Oturum süresi doldu. Çıkış yapıp tekrar giriş yapın.");
+        }
+        throw new Error(data.error || `Yükleme başarısız (${res.status}).`);
+      }
+
+      const previous = form.imageUrl;
+      setForm((prev) => ({ ...prev, imageUrl: data.url! }));
+      setMessage("Görsel yüklendi.");
+
+      if (previous?.startsWith("/uploads/")) {
+        void fetch("/api/admin/upload", {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: previous }),
+        });
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Yükleme zaman aşımına uğradı. Daha küçük bir görsel deneyin.");
+      } else {
+        setError(err instanceof Error ? err.message : "Görsel yüklenemedi.");
+      }
+    } finally {
+      window.clearTimeout(timeout);
+      setUploading(false);
+    }
   };
 
   const removeImage = async () => {
@@ -163,17 +214,42 @@ export default function AdminDashboard() {
     setMessage("Görsel kaldırıldı.");
   };
 
+  const handleTypeChange = (type: string) => {
+    setForm((prev) => ({
+      ...prev,
+      type,
+      category:
+        type === "news" && prev.category !== "Havacılık Gündemi"
+          ? "Havacılık Gündemi"
+          : prev.category,
+      readingTime: type === "news" && !prev.readingTime ? "3 dk" : prev.readingTime,
+    }));
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError("");
     setMessage("");
 
+    const content = form.content.trim();
+    const excerpt =
+      form.excerpt.trim() ||
+      content.split(/\n+/).map((p) => p.trim()).find(Boolean)?.slice(0, 180) ||
+      "";
+
+    if (!excerpt && !content) {
+      setError("Haber metnini yazın.");
+      setSaving(false);
+      return;
+    }
+
     const payload = {
       title: form.title,
-      excerpt: form.excerpt,
+      excerpt,
+      content: content || null,
       category: form.category,
-      type: form.type,
+      type: form.type || "news",
       difficulty: form.difficulty,
       date: form.date,
       readingTime: form.readingTime,
@@ -207,7 +283,7 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Bu haberi silmek istediğinize emin misiniz?")) return;
+    if (!confirm("Bu içeriği silmek istediğinize emin misiniz?")) return;
     const res = await fetch(`/api/admin/articles/${id}`, { method: "DELETE" });
     if (!res.ok) {
       setError("Silme başarısız.");
@@ -230,6 +306,9 @@ export default function AdminDashboard() {
         <div>
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#56D7FF]">Octo Air</p>
           <h1 className="font-heading mt-1 text-2xl font-medium sm:text-3xl">İçerik Yönetimi</h1>
+          <p className="mt-1 text-sm text-[rgba(242,247,255,0.55)]">
+            Haber, rehber ve içerik ekleyin — başlık, özet, tam metin ve görsel.
+          </p>
         </div>
         <div className="flex gap-2">
           <a
@@ -248,36 +327,30 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl border border-[#56D7FF]/15 bg-[#061326]/80 p-5 sm:p-6"
         >
           <h2 className="font-heading text-lg">
-            {editing ? "İçeriği Düzenle" : "Yeni İçerik Ekle"}
+            {editing ? "İçeriği Düzenle" : "Yeni Haber / İçerik Ekle"}
           </h2>
 
           <div className="mt-5 space-y-4">
-            <Field label="Başlık">
-              <input
-                required
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                className={inputClass}
-              />
-            </Field>
-
-            <Field label="Özet">
-              <textarea
-                required
-                rows={4}
-                value={form.excerpt}
-                onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
-                className={`${inputClass} resize-y`}
-              />
-            </Field>
-
             <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Tür">
+                <select
+                  value={form.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  className={inputClass}
+                >
+                  {TYPE_OPTIONS.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Kategori">
                 <select
                   value={form.category}
@@ -291,19 +364,112 @@ export default function AdminDashboard() {
                   ))}
                 </select>
               </Field>
-              <Field label="Tür">
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-                  className={inputClass}
-                >
-                  {TYPE_OPTIONS.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+            </div>
+
+            <Field label="Haber başlığı">
+              <input
+                required
+                value={form.title}
+                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                className={inputClass}
+                placeholder="Örn: EASA yeni rehberi yayımladı"
+              />
+            </Field>
+
+            <Field label="Haber">
+              <textarea
+                rows={12}
+                value={form.content}
+                onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
+                className={`${inputClass} min-h-[240px] resize-y`}
+                placeholder="Haberi buraya yazın. Paragrafları boş satırla ayırın."
+              />
+            </Field>
+
+            <Field label="Kısa açıklama (kartlarda — opsiyonel)">
+              <textarea
+                rows={2}
+                value={form.excerpt}
+                onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
+                className={`${inputClass} resize-y`}
+                placeholder="Boş bırakırsanız haberin ilk cümlesi kullanılır"
+              />
+            </Field>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[rgba(242,247,255,0.55)]">
+                Kapak görseli
+              </p>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void uploadFile(file);
+                }}
+                className={`rounded-xl border border-dashed p-5 text-center transition-colors ${
+                  dragOver
+                    ? "border-[#56D7FF] bg-[#56D7FF]/10"
+                    : "border-[#56D7FF]/25 bg-[#05070A]/50"
+                }`}
+              >
+                {form.imageUrl ? (
+                  <div className="space-y-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={form.imageUrl}
+                      alt="Kapak görseli"
+                      className="mx-auto h-44 w-full max-w-md rounded-lg object-cover"
+                    />
+                    <div className="flex justify-center gap-2">
+                      <label className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]">
+                        Değiştir
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void uploadFile(file);
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="rounded-full border border-red-300/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-red-200"
+                      >
+                        Kaldır
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-[rgba(242,247,255,0.7)]">
+                      {uploading
+                        ? "Yükleniyor..."
+                        : "JPG / PNG / WEBP sürükleyin veya dosya seçin"}
+                    </p>
+                    <label className="mt-3 inline-flex cursor-pointer rounded-full border border-[#56D7FF]/3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-[#56D7FF]">
+                      Görsel Seç
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void uploadFile(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -325,7 +491,7 @@ export default function AdminDashboard() {
                   value={form.readingTime}
                   onChange={(e) => setForm((p) => ({ ...p, readingTime: e.target.value }))}
                   className={inputClass}
-                  placeholder="5 dk"
+                  placeholder="3 dk"
                 />
               </Field>
             </div>
@@ -335,7 +501,7 @@ export default function AdminDashboard() {
                 value={form.date}
                 onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
                 className={inputClass}
-                placeholder="11 Tem 2026"
+                placeholder="13 Tem 2026"
               />
             </Field>
 
@@ -367,90 +533,16 @@ export default function AdminDashboard() {
               </label>
             </div>
 
-            <div>
-              <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[rgba(242,247,255,0.55)]">
-                Görsel (sürükle bırak)
-              </p>
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) void uploadFile(file);
-                }}
-                className={`rounded-xl border border-dashed p-5 text-center transition-colors ${
-                  dragOver
-                    ? "border-[#56D7FF] bg-[#56D7FF]/10"
-                    : "border-[#56D7FF]/25 bg-[#05070A]/50"
-                }`}
-              >
-                {form.imageUrl ? (
-                  <div className="space-y-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={form.imageUrl}
-                      alt="Haber görseli"
-                      className="mx-auto h-36 w-full max-w-sm rounded-lg object-cover"
-                    />
-                    <div className="flex justify-center gap-2">
-                      <label className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]">
-                        Değiştir
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void uploadFile(file);
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={removeImage}
-                        className="rounded-full border border-red-300/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-red-200"
-                      >
-                        Kaldır
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm text-[rgba(242,247,255,0.7)]">
-                      {uploading ? "Yükleniyor..." : "Görseli buraya bırakın veya seçin"}
-                    </p>
-                    <label className="mt-3 inline-flex cursor-pointer rounded-full border border-[#56D7FF]/3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-[#56D7FF]">
-                      Dosya Seç
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) void uploadFile(file);
-                        }}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {error && <p className="text-sm text-red-300">{error}</p>}
             {message && <p className="text-sm text-[#56D7FF]">{message}</p>}
 
             <div className="flex flex-wrap gap-2 pt-2">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || uploading}
                 className="rounded-full border border-[#3DA5FF]/45 bg-[linear-gradient(135deg,#081A33,#123A6B)] px-5 py-2.5 text-[11px] uppercase tracking-[0.14em] disabled:opacity-60"
               >
-                {saving ? "Kaydediliyor..." : editing ? "Güncelle" : "İçeriği Ekle"}
+                {saving ? "Kaydediliyor..." : editing ? "Güncelle" : "Haberi Yayınla"}
               </button>
               {editing && (
                 <button
@@ -471,7 +563,7 @@ export default function AdminDashboard() {
             {loading ? "Yükleniyor..." : `${sorted.length} içerik`}
           </p>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[70vh] space-y-3 overflow-y-auto pr-1">
             {sorted.map((article) => (
               <div
                 key={article.id}
@@ -481,9 +573,7 @@ export default function AdminDashboard() {
                   <div
                     className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10"
                     style={{
-                      background: article.imageUrl
-                        ? undefined
-                        : article.imageGradient,
+                      background: article.imageUrl ? undefined : article.imageGradient,
                     }}
                   >
                     {article.imageUrl && (
@@ -499,8 +589,8 @@ export default function AdminDashboard() {
                     <p className="truncate text-sm font-medium text-[#F2F7FF]">{article.title}</p>
                     <p className="mt-1 text-[11px] text-[rgba(242,247,255,0.5)]">
                       {article.category} · {article.type} · {article.date}
-                      {article.featured ? " · Öne çıkan" : ""}
-                      {article.showInLatest ? " · Son içerikler" : ""}
+                      {article.imageUrl ? " · görsel" : ""}
+                      {article.content ? " · metin" : ""}
                     </p>
                     <div className="mt-2 flex gap-2">
                       <button
@@ -510,6 +600,14 @@ export default function AdminDashboard() {
                       >
                         Düzenle
                       </button>
+                      <a
+                        href={article.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] uppercase tracking-[0.12em] text-[rgba(242,247,255,0.55)]"
+                      >
+                        Görüntüle
+                      </a>
                       <button
                         type="button"
                         onClick={() => void handleDelete(article.id)}

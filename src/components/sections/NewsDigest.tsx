@@ -16,7 +16,7 @@ export default function NewsDigest({ articles }: { articles: Article[] }) {
 
       <div className="relative z-[1] mx-auto max-w-[1280px]">
         <Reveal variant="label">
-          <p className="section-label mb-3">İkincil Seçki</p>
+          <p className="section-label mb-3">Haberler</p>
         </Reveal>
         <Reveal delay={0.08}>
           <h2 className="font-heading text-[clamp(1.4rem,2.8vw,2.2rem)] font-medium tracking-[-0.03em] text-[#F2F7FF]">
@@ -25,7 +25,7 @@ export default function NewsDigest({ articles }: { articles: Article[] }) {
         </Reveal>
         <Reveal delay={0.12} variant="soft">
           <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-[rgba(242,247,255,0.65)]">
-            Ana odağımız öğrenme ve analiz. Burada yalnızca seçilmiş, kısa gündem özetleri yer alır.
+            Paylaşılan haberler burada görünür. Bir habere tıklayarak detay sayfasını açabilirsiniz.
           </p>
         </Reveal>
 
@@ -34,7 +34,7 @@ export default function NewsDigest({ articles }: { articles: Article[] }) {
             <StaggerItem key={article.id} className="h-full min-h-[220px]">
               <Link
                 href={articleHref(article)}
-                aria-label={`${article.title} — içeriği aç`}
+                aria-label={`${article.title} — haberi aç`}
                 className="window-card-shell group block h-full cursor-pointer"
               >
                 <WindowNeonRing intensity="soft" />
@@ -59,7 +59,7 @@ export default function NewsDigest({ articles }: { articles: Article[] }) {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.16em] text-[#56D7FF]/75">
-                      <span>Gündem</span>
+                      <span>Haber</span>
                       <span>{article.date}</span>
                     </div>
                     <h3 className="font-heading mt-2.5 line-clamp-2 text-[1.05rem] font-medium leading-snug text-[#F2F7FF] transition-colors duration-300 group-hover:text-[#C9F0FF]">
@@ -68,6 +68,12 @@ export default function NewsDigest({ articles }: { articles: Article[] }) {
                     <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-[rgba(242,247,255,0.62)]">
                       {article.excerpt}
                     </p>
+                    <span className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.14em] text-[#3DA5FF] transition-colors group-hover:text-[#56D7FF]">
+                      Haberi oku
+                      <span className="transition-transform duration-300 group-hover:translate-x-1">
+                        →
+                      </span>
+                    </span>
                   </div>
                 </div>
               </Link>

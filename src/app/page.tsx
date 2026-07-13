@@ -25,7 +25,7 @@ export default async function Home() {
   const cockpit = getArticlesByCategory(articles, "Kokpit ve Sistemler", 6);
   const safety = getArticlesByCategory(articles, "Emniyet & İnsan Faktörü", 6);
   const cases = getArticlesByType(articles, "case-study", 4);
-  const news = getNewsDigest(articles, 3);
+  const news = getNewsDigest(articles, 9);
 
   return (
     <main className="page-shell bg-[#05070A]">
@@ -33,9 +33,9 @@ export default async function Home() {
       <EditorialIntro />
       <Categories />
       <FeaturedGuides articles={featured} />
+      <NewsDigest articles={news} />
       <TopicsDashboard cockpit={cockpit} safety={safety} cases={cases} />
       <LatestContent articles={latest} />
-      <NewsDigest articles={news} />
       <Newsletter />
       <SiteFooter />
     </main>

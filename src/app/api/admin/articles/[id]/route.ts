@@ -22,9 +22,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
 
-  const article = await updateArticle(id, {
+  const patch: Parameters<typeof updateArticle>[1] = {
     title: body.title !== undefined ? String(body.title).trim() : undefined,
-    excerpt: body.excerpt !== undefined ? String(body.excerpt).trim() : undefined,
     category: body.category !== undefined ? String(body.category).trim() : undefined,
     type: body.type !== undefined ? (body.type as ContentType) : undefined,
     difficulty:
@@ -48,7 +47,26 @@ export async function PUT(request: NextRequest, { params }: Params) {
     imageUrl: body.imageUrl === undefined ? undefined : body.imageUrl,
     featured: body.featured === undefined ? undefined : Boolean(body.featured),
     showInLatest: body.showInLatest === undefined ? undefined : Boolean(body.showInLatest),
-  });
+  };
+
+  if (body.content !== undefined) {
+    patch.content = body.content ? String(body.content) : null;
+  }
+
+  if (body.excerpt !== undefined) {
+    const excerpt = String(body.excerpt).trim();
+    if (excerpt) {
+      patch.excerpt = excerpt;
+    } else if (patch.content) {
+      patch.excerpt =
+        patch.content.split(/\n+/).map((p) => p.trim()).find(Boolean)?.slice(0, 180) ||
+        patch.content.slice(0, 180);
+    } else {
+      patch.excerpt = excerpt;
+    }
+  }
+
+  const article = await updateArticle(id, patch);
 
   if (!article) {
     return NextResponse.json({ error: "İçerik bulunamadı." }, { status: 404 });

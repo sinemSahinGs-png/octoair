@@ -46,10 +46,10 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             OCTO AIR
           </Link>
           <Link
-            href="/#son-icerikler"
+            href={article.type === "news" ? "/#gundem" : "/#son-icerikler"}
             className="text-[12px] uppercase tracking-[0.16em] text-[rgba(242,247,255,0.55)] transition-colors hover:text-[#56D7FF]"
           >
-            ← İçeriklere dön
+            ← {article.type === "news" ? "Haberlere dön" : "İçeriklere dön"}
           </Link>
         </div>
       </header>

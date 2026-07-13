@@ -257,8 +257,27 @@ export async function ensureUploadsDir() {
 export async function saveUploadFile(file: File) {
   await ensureUploadsDir();
   const bytes = Buffer.from(await file.arrayBuffer());
-  const ext = path.extname(file.name || "").toLowerCase() || ".jpg";
-  const safeExt = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"].includes(ext)
+  if (!bytes.length) {
+    throw new Error("Dosya boş.");
+  }
+
+  const original = (file.name || "image").toLowerCase();
+  let ext = path.extname(original);
+  if (!ext && file.type) {
+    const map: Record<string, string> = {
+      "image/jpeg": ".jpg",
+      "image/jpg": ".jpg",
+      "image/png": ".png",
+      "image/webp": ".webp",
+      "image/gif": ".gif",
+      "image/avif": ".avif",
+    };
+    ext = map[file.type] || ".jpg";
+  }
+  if (ext === ".jpeg") ext = ".jpg";
+  if (ext === ".heic" || ext === ".heif") ext = ".jpg";
+
+  const safeExt = [".jpg", ".png", ".webp", ".gif", ".avif"].includes(ext)
     ? ext
     : ".jpg";
   const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${safeExt}`;
@@ -294,6 +313,17 @@ export function getArticlesByType(articles: Article[], type: ContentType, limit 
   return articles.filter((article) => article.type === type).slice(0, limit);
 }
 
-export function getNewsDigest(articles: Article[], limit = 4) {
-  return articles.filter((article) => article.type === "news").slice(0, limit);
+export function getNewsDigest(articles: Article[], limit = 6) {
+  const news = articles.filter(
+    (article) =>
+      article.type === "news" || article.category === "Havacılık Gündemi",
+  );
+  // Deduplicate by id, newest first (articles already sorted)
+  const seen = new Set<string>();
+  const unique = news.filter((article) => {
+    if (seen.has(article.id)) return false;
+    seen.add(article.id);
+    return true;
+  });
+  return unique.slice(0, limit);
 }
