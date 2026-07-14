@@ -185,7 +185,11 @@ export default function AdminDashboard() {
       setForm((prev) => ({ ...prev, imageUrl: data.url! }));
       setMessage("Görsel yüklendi.");
 
-      if (previous?.startsWith("/uploads/")) {
+      if (
+        previous?.startsWith("/uploads/") ||
+        previous?.startsWith("/api/media/") ||
+        previous?.includes("blob.vercel-storage.com")
+      ) {
         void fetch("/api/admin/upload", {
           method: "DELETE",
           credentials: "same-origin",
@@ -207,7 +211,11 @@ export default function AdminDashboard() {
 
   const removeImage = async () => {
     if (!form.imageUrl) return;
-    if (form.imageUrl.startsWith("/uploads/")) {
+    if (
+      form.imageUrl.startsWith("/uploads/") ||
+      form.imageUrl.startsWith("/api/media/") ||
+      form.imageUrl.includes("blob.vercel-storage.com")
+    ) {
       await fetch("/api/admin/upload", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
