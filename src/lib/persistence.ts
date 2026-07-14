@@ -1,0 +1,185 @@
+import { put, list, del } from "@vercel/blob";
+import { promises as fs } from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
+
+const ARTICLES_BLOB = "octo-air/articles.json";
+const DATA_PATH = path.join(process.cwd(), "data", "articles.json");
+const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+
+export function isServerless() {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
+export function hasBlobToken() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+async function readLocalArticlesRaw(): Promise<string | null> {
+  try {
+    return await fs.readFile(DATA_PATH, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+async function writeLocalArticlesRaw(raw: string) {
+  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+  await fs.writeFile(DATA_PATH, raw, "utf8");
+}
+
+async function readBlobArticlesRaw(): Promise<string | null> {
+  if (!hasBlobToken()) return null;
+  try {
+    const result = await list({ prefix: ARTICLES_BLOB, limit: 10 });
+    const match = result.blobs.find((b) => b.pathname === ARTICLES_BLOB);
+    if (!match) return null;
+    const res = await fetch(match.url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (error) {
+    console.error("[blob-read-articles]", error);
+    return null;
+  }
+}
+
+async function writeBlobArticlesRaw(raw: string) {
+  if (!hasBlobToken()) {
+    throw new Error(
+      "Vercel üzerinde kayıt için BLOB_READ_WRITE_TOKEN gerekli. Vercel Dashboard → Storage → Blob ile token ekleyin.",
+    );
+  }
+  await put(ARTICLES_BLOB, raw, {
+    access: "public",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
+}
+
+/** Load articles JSON text (blob on Vercel, local file in dev). */
+export async function loadArticlesRaw(): Promise<string> {
+  if (hasBlobToken()) {
+    const fromBlob = await readBlobArticlesRaw();
+    if (fromBlob) return fromBlob;
+    // Seed blob from bundled local data if present
+    const local = await readLocalArticlesRaw();
+    if (local) {
+      try {
+        await writeBlobArticlesRaw(local);
+      } catch {
+        // ignore seed failure
+      }
+      return local;
+    }
+    return "[]";
+  }
+
+  if (isServerless()) {
+    // Read-only bundle: can still READ local data shipped in deployment
+    const local = await readLocalArticlesRaw();
+    return local || "[]";
+  }
+
+  const local = await readLocalArticlesRaw();
+  if (local) return local;
+  await writeLocalArticlesRaw("[]");
+  return "[]";
+}
+
+/** Persist articles JSON. */
+export async function persistArticlesRaw(raw: string) {
+  if (hasBlobToken()) {
+    await writeBlobArticlesRaw(raw);
+    // Best-effort local mirror in non-serverless
+    if (!isServerless()) {
+      try {
+        await writeLocalArticlesRaw(raw);
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
+
+  if (isServerless()) {
+    throw new Error(
+      "Vercel'de haber kaydı için Blob Storage gerekli. Vercel → Storage → Create Blob → BLOB_READ_WRITE_TOKEN env ekleyin.",
+    );
+  }
+
+  await writeLocalArticlesRaw(raw);
+}
+
+export async function persistImageBuffer(
+  bytes: Buffer,
+  filenameHint: string,
+  mime: string,
+): Promise<string> {
+  const ext = (() => {
+    const fromName = path.extname(filenameHint || "").toLowerCase();
+    if (fromName === ".jpeg") return ".jpg";
+    if ([".jpg", ".png", ".webp", ".gif", ".avif"].includes(fromName)) return fromName;
+    const map: Record<string, string> = {
+      "image/jpeg": ".jpg",
+      "image/jpg": ".jpg",
+      "image/png": ".png",
+      "image/webp": ".webp",
+      "image/gif": ".gif",
+      "image/avif": ".avif",
+    };
+    return map[mime] || ".jpg";
+  })();
+
+  const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
+
+  if (hasBlobToken()) {
+    const blob = await put(`octo-air/uploads/${filename}`, bytes, {
+      access: "public",
+      contentType: mime.startsWith("image/") ? mime : "image/jpeg",
+      addRandomSuffix: false,
+    });
+    return blob.url;
+  }
+
+  if (isServerless()) {
+    // No writable public/ on Vercel — embed as data URL (keep under ~1.5MB preferred)
+    if (bytes.length > 1.8 * 1024 * 1024) {
+      throw new Error(
+        "Vercel'de kalıcı görsel için Blob Storage gerekli (büyük dosya). Vercel → Storage → Blob kurun veya 1.5MB altı görsel kullanın.",
+      );
+    }
+    const b64 = bytes.toString("base64");
+    const safeMime = mime.startsWith("image/") ? mime : "image/jpeg";
+    return `data:${safeMime};base64,${b64}`;
+  }
+
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  const fullPath = path.join(UPLOADS_DIR, filename);
+  await fs.writeFile(fullPath, bytes);
+  return `/uploads/${filename}`;
+}
+
+export async function removeStoredImage(publicPath: string) {
+  if (!publicPath) return;
+
+  if (publicPath.startsWith("data:")) return;
+
+  if (publicPath.includes("blob.vercel-storage.com") || publicPath.startsWith("https://")) {
+    if (!hasBlobToken()) return;
+    try {
+      await del(publicPath);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  if (!publicPath.startsWith("/uploads/")) return;
+  const fullPath = path.join(process.cwd(), "public", publicPath.replace(/^\//, ""));
+  try {
+    await fs.unlink(fullPath);
+  } catch {
+    // ignore
+  }
+}

@@ -1,42 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-import { randomUUID } from "crypto";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { deleteUploadFile, ensureUploadsDir } from "@/lib/store";
+import { persistImageBuffer, removeStoredImage } from "@/lib/persistence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
-
 function unauthorized() {
   return NextResponse.json({ error: "Yetkisiz. Tekrar giriş yapın." }, { status: 401 });
-}
-
-function extFromNameOrMime(name: string, mime: string) {
-  const fromName = path.extname(name || "").toLowerCase();
-  if (fromName === ".jpeg") return ".jpg";
-  if ([".jpg", ".png", ".webp", ".gif", ".avif"].includes(fromName)) return fromName;
-
-  const map: Record<string, string> = {
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "image/avif": ".avif",
-  };
-  return map[mime] || ".jpg";
-}
-
-async function writeImageBuffer(bytes: Buffer, filenameHint: string, mime: string) {
-  await ensureUploadsDir();
-  const safeExt = extFromNameOrMime(filenameHint, mime);
-  const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${safeExt}`;
-  const fullPath = path.join(UPLOADS_DIR, filename);
-  await fs.writeFile(fullPath, bytes);
-  return `/uploads/${filename}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -47,7 +17,6 @@ export async function POST(request: NextRequest) {
 
     const contentType = request.headers.get("content-type") || "";
 
-    // Preferred: JSON base64 (avoids FormData/File instanceof issues)
     if (contentType.includes("application/json")) {
       const body = (await request.json()) as {
         filename?: string;
@@ -73,11 +42,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Sadece görsel yükleyebilirsiniz." }, { status: 400 });
       }
 
-      const url = await writeImageBuffer(bytes, body.filename || "image.jpg", mime);
+      const url = await persistImageBuffer(bytes, body.filename || "image.jpg", mime);
       return NextResponse.json({ url, ok: true });
     }
 
-    // Fallback: multipart FormData
     const form = await request.formData();
     const entry = form.get("file");
     if (!entry || typeof entry === "string") {
@@ -98,7 +66,7 @@ export async function POST(request: NextRequest) {
         ? (entry as File).name
         : "image.jpg";
     const mime = blob.type || "image/jpeg";
-    const url = await writeImageBuffer(bytes, filename, mime);
+    const url = await persistImageBuffer(bytes, filename, mime);
     return NextResponse.json({ url, ok: true });
   } catch (error) {
     console.error("[upload]", error);
@@ -106,7 +74,7 @@ export async function POST(request: NextRequest) {
       {
         error:
           error instanceof Error
-            ? `Yükleme hatası: ${error.message}`
+            ? error.message
             : "Görsel yüklenemedi.",
       },
       { status: 500 },
@@ -125,7 +93,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "URL gerekli." }, { status: 400 });
     }
 
-    await deleteUploadFile(body.url);
+    await removeStoredImage(body.url);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[upload-delete]", error);

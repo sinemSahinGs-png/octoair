@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
-import { promises as fs } from "fs";
-import path from "path";
+import {
+  loadArticlesRaw,
+  persistArticlesRaw,
+  persistImageBuffer,
+  removeStoredImage,
+} from "@/lib/persistence";
 
 export type ContentType =
   | "guide"
@@ -42,9 +46,6 @@ export type ArticleInput = Omit<Article, "id" | "createdAt" | "slug" | "href" | 
   /** @deprecated use readingTime */
   readTime?: string;
 };
-
-const DATA_PATH = path.join(process.cwd(), "data", "articles.json");
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
 
 const GRADIENTS = [
   "linear-gradient(145deg, #0B2A52 0%, #081A33 45%, #112B4A 100%)",
@@ -123,18 +124,8 @@ function normalizeArticle(raw: Record<string, unknown>): Article {
   };
 }
 
-async function ensureDataFile() {
-  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  try {
-    await fs.access(DATA_PATH);
-  } catch {
-    await fs.writeFile(DATA_PATH, "[]", "utf8");
-  }
-}
-
 export async function getArticles(): Promise<Article[]> {
-  await ensureDataFile();
-  const raw = await fs.readFile(DATA_PATH, "utf8");
+  const raw = await loadArticlesRaw();
   const parsed = JSON.parse(raw) as Record<string, unknown>[];
   return parsed
     .map(normalizeArticle)
@@ -144,8 +135,7 @@ export async function getArticles(): Promise<Article[]> {
 }
 
 export async function saveArticles(articles: Article[]) {
-  await ensureDataFile();
-  await fs.writeFile(DATA_PATH, JSON.stringify(articles, null, 2), "utf8");
+  await persistArticlesRaw(JSON.stringify(articles, null, 2));
 }
 
 export async function getArticleById(id: string) {
@@ -244,56 +234,24 @@ export async function deleteArticle(id: string) {
   const next = articles.filter((item) => item.id !== id);
   await saveArticles(next);
 
-  if (article.imageUrl?.startsWith("/uploads/")) {
-    await deleteUploadFile(article.imageUrl);
+  if (article.imageUrl) {
+    await removeStoredImage(article.imageUrl);
   }
   return true;
 }
 
 export async function ensureUploadsDir() {
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  // compatibility stub — local dir handled in persistence
 }
 
 export async function saveUploadFile(file: File) {
-  await ensureUploadsDir();
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (!bytes.length) {
-    throw new Error("Dosya boş.");
-  }
-
-  const original = (file.name || "image").toLowerCase();
-  let ext = path.extname(original);
-  if (!ext && file.type) {
-    const map: Record<string, string> = {
-      "image/jpeg": ".jpg",
-      "image/jpg": ".jpg",
-      "image/png": ".png",
-      "image/webp": ".webp",
-      "image/gif": ".gif",
-      "image/avif": ".avif",
-    };
-    ext = map[file.type] || ".jpg";
-  }
-  if (ext === ".jpeg") ext = ".jpg";
-  if (ext === ".heic" || ext === ".heif") ext = ".jpg";
-
-  const safeExt = [".jpg", ".png", ".webp", ".gif", ".avif"].includes(ext)
-    ? ext
-    : ".jpg";
-  const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${safeExt}`;
-  const fullPath = path.join(UPLOADS_DIR, filename);
-  await fs.writeFile(fullPath, bytes);
-  return `/uploads/${filename}`;
+  if (!bytes.length) throw new Error("Dosya boş.");
+  return persistImageBuffer(bytes, file.name || "image.jpg", file.type || "image/jpeg");
 }
 
 export async function deleteUploadFile(publicPath: string) {
-  if (!publicPath.startsWith("/uploads/")) return;
-  const fullPath = path.join(process.cwd(), "public", publicPath.replace(/^\//, ""));
-  try {
-    await fs.unlink(fullPath);
-  } catch {
-    // ignore missing files
-  }
+  await removeStoredImage(publicPath);
 }
 
 export function getFeaturedArticles(articles: Article[]) {
@@ -318,7 +276,6 @@ export function getNewsDigest(articles: Article[], limit = 6) {
     (article) =>
       article.type === "news" || article.category === "Havacılık Gündemi",
   );
-  // Deduplicate by id, newest first (articles already sorted)
   const seen = new Set<string>();
   const unique = news.filter((article) => {
     if (seen.has(article.id)) return false;
