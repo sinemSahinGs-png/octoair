@@ -1,4 +1,4 @@
-import { put, list, del } from "@vercel/blob";
+import { put, list, del, get } from "@vercel/blob";
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 const ARTICLES_BLOB = "octo-air/articles.json";
 const DATA_PATH = path.join(process.cwd(), "data", "articles.json");
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+const MEDIA_PREFIX = "/api/media/";
 
 export function isServerless() {
   return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
@@ -13,6 +14,20 @@ export function isServerless() {
 
 export function hasBlobToken() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+/** Private stores (Vercel default) need access:"private". Public stores: set BLOB_ACCESS=public */
+export function blobAccess(): "public" | "private" {
+  return process.env.BLOB_ACCESS === "public" ? "public" : "private";
+}
+
+export function toMediaProxyPath(pathname: string) {
+  return `${MEDIA_PREFIX}${pathname.replace(/^\/+/, "")}`;
+}
+
+export function fromMediaProxyPath(url: string): string | null {
+  if (!url.startsWith(MEDIA_PREFIX)) return null;
+  return url.slice(MEDIA_PREFIX.length).replace(/^\/+/, "");
 }
 
 async function readLocalArticlesRaw(): Promise<string | null> {
@@ -28,12 +43,32 @@ async function writeLocalArticlesRaw(raw: string) {
   await fs.writeFile(DATA_PATH, raw, "utf8");
 }
 
+async function streamToText(stream: ReadableStream<Uint8Array>) {
+  return new Response(stream).text();
+}
+
 async function readBlobArticlesRaw(): Promise<string | null> {
   if (!hasBlobToken()) return null;
   try {
-    const result = await list({ prefix: ARTICLES_BLOB, limit: 10 });
-    const match = result.blobs.find((b) => b.pathname === ARTICLES_BLOB);
+    const access = blobAccess();
+    const result = await get(ARTICLES_BLOB, { access, useCache: false });
+    if (result?.statusCode === 200 && result.stream) {
+      return await streamToText(result.stream);
+    }
+
+    // Fallback for older public blobs listed by URL
+    const listed = await list({ prefix: ARTICLES_BLOB, limit: 10 });
+    const match = listed.blobs.find((b) => b.pathname === ARTICLES_BLOB);
     if (!match) return null;
+
+    if (access === "private") {
+      const viaUrl = await get(match.url, { access, useCache: false });
+      if (viaUrl?.statusCode === 200 && viaUrl.stream) {
+        return await streamToText(viaUrl.stream);
+      }
+      return null;
+    }
+
     const res = await fetch(match.url, { cache: "no-store" });
     if (!res.ok) return null;
     return await res.text();
@@ -50,7 +85,7 @@ async function writeBlobArticlesRaw(raw: string) {
     );
   }
   await put(ARTICLES_BLOB, raw, {
-    access: "public",
+    access: blobAccess(),
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -132,13 +167,19 @@ export async function persistImageBuffer(
   })();
 
   const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
+  const pathname = `octo-air/uploads/${filename}`;
 
   if (hasBlobToken()) {
-    const blob = await put(`octo-air/uploads/${filename}`, bytes, {
-      access: "public",
+    const access = blobAccess();
+    const blob = await put(pathname, bytes, {
+      access,
       contentType: mime.startsWith("image/") ? mime : "image/jpeg",
       addRandomSuffix: false,
     });
+    // Private store URLs are not browser-readable — proxy through Next
+    if (access === "private") {
+      return toMediaProxyPath(pathname);
+    }
     return blob.url;
   }
 
@@ -193,6 +234,17 @@ export async function removeStoredImage(publicPath: string) {
   if (!publicPath) return;
 
   if (publicPath.startsWith("data:")) return;
+
+  const viaProxy = fromMediaProxyPath(publicPath);
+  if (viaProxy) {
+    if (!hasBlobToken()) return;
+    try {
+      await del(viaProxy);
+    } catch {
+      // ignore
+    }
+    return;
+  }
 
   if (publicPath.includes("blob.vercel-storage.com") || publicPath.startsWith("https://")) {
     if (!hasBlobToken()) return;
