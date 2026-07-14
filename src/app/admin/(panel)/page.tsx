@@ -71,6 +71,7 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [storageReady, setStorageReady] = useState(true);
 
   const editing = Boolean(form.id);
 
@@ -78,6 +79,9 @@ export default function AdminDashboard() {
     setLoading(true);
     const res = await fetch("/api/admin/articles");
     const data = await res.json();
+    if (data?.storage) {
+      setStorageReady(Boolean(data.storage.ready));
+    }
     setArticles(data.articles || []);
     setLoading(false);
   };
@@ -244,6 +248,16 @@ export default function AdminDashboard() {
       return;
     }
 
+    // Huge data-URL images freeze Vercel requests — keep ref only if short HTTP path
+    let imageUrl = form.imageUrl;
+    if (imageUrl?.startsWith("data:") && imageUrl.length > 200_000) {
+      setError(
+        "Görsel henüz kalıcı depolamaya yazılamadı. Vercel → Storage → Blob kurun, sonra görseli yeniden yükleyip kaydedin. İsterseniz görseli kaldırıp yalnız metni kaydedebilirsiniz.",
+      );
+      setSaving(false);
+      return;
+    }
+
     const payload = {
       title: form.title,
       excerpt,
@@ -256,30 +270,52 @@ export default function AdminDashboard() {
       sourceUrl: form.sourceUrl || null,
       featured: form.featured,
       showInLatest: form.showInLatest,
-      imageUrl: form.imageUrl,
+      imageUrl,
     };
 
-    const res = await fetch(
-      editing ? `/api/admin/articles/${form.id}` : "/api/admin/articles",
-      {
-        method: editing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
 
-    const data = await res.json();
-    setSaving(false);
+    try {
+      const res = await fetch(
+        editing ? `/api/admin/articles/${form.id}` : "/api/admin/articles",
+        {
+          method: editing ? "PUT" : "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify(payload),
+        },
+      );
 
-    if (!res.ok) {
-      setError(data.error || "Kayıt başarısız.");
-      return;
+      let data: { error?: string; article?: Article } = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Sunucu yanıtı okunamadı. Sayfayı yenileyip tekrar deneyin.");
+      }
+
+      if (!res.ok) {
+        setError(data.error || "Kayıt başarısız.");
+        return;
+      }
+
+      setMessage(editing ? "İçerik güncellendi." : "Yeni içerik eklendi.");
+      resetForm();
+      await loadArticles();
+      router.refresh();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError(
+          "Kayıt zaman aşımına uğradı. Vercel Blob Storage kurulu mu kontrol edin; büyük görseli kaldırıp tekrar deneyin.",
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Kayıt başarısız.");
+      }
+    } finally {
+      window.clearTimeout(timeout);
+      setSaving(false);
     }
-
-    setMessage(editing ? "İçerik güncellendi." : "Yeni içerik eklendi.");
-    resetForm();
-    await loadArticles();
-    router.refresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -302,6 +338,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      {!storageReady && (
+        <div className="mb-6 rounded-2xl border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Canlı sitede kayıt kapalı: Vercel Dashboard →{" "}
+          <strong className="font-medium">Storage → Blob</strong> oluşturun.
+          `BLOB_READ_WRITE_TOKEN` env olarak eklensin, ardından redeploy edin. Token yokken
+          “Kaydediliyor…” takılır / kayıt yazılamaz.
+        </div>
+      )}
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#56D7FF]">Octo Air</p>

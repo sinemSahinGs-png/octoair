@@ -160,6 +160,35 @@ export async function persistImageBuffer(
   return `/uploads/${filename}`;
 }
 
+/** Turn a data: URL into a durable public URL (blob/local) before saving articles. */
+export async function materializeImageUrl(imageUrl: string, filenameHint = "image.jpg") {
+  if (!imageUrl.startsWith("data:")) return imageUrl;
+
+  const comma = imageUrl.indexOf(",");
+  const header = comma >= 0 ? imageUrl.slice(0, comma) : "";
+  const raw = comma >= 0 ? imageUrl.slice(comma + 1) : "";
+  const mimeMatch = /^data:([^;]+);base64$/i.exec(header);
+  if (!mimeMatch || !raw) {
+    throw new Error("Geçersiz görsel verisi.");
+  }
+
+  const mime = mimeMatch[1] || "image/jpeg";
+  const bytes = Buffer.from(raw, "base64");
+  if (!bytes.length) throw new Error("Görsel boş.");
+  if (bytes.length > 12 * 1024 * 1024) {
+    throw new Error("Görsel 12MB’dan küçük olmalı.");
+  }
+
+  // Prefer durable storage; avoid embedding megabase64 into articles.json
+  if (!hasBlobToken() && isServerless()) {
+    throw new Error(
+      "Vercel’de görselli haber için Blob Storage gerekli. Dashboard → Storage → Blob kurun.",
+    );
+  }
+
+  return persistImageBuffer(bytes, filenameHint, mime);
+}
+
 export async function removeStoredImage(publicPath: string) {
   if (!publicPath) return;
 
